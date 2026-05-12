@@ -3,6 +3,8 @@
 研究不同 Reward Shaping 策略對 DQN 在 2048 遊戲中學習效果的影響。
 四種 Agent 使用完全相同的模型架構與訓練設定，唯一的變數是 **Reward 函數設計**。
 
+🎮 **線上 Demo：[https://a123ao.github.io/2048-rl/](https://a123ao.github.io/2048-rl/)**
+
 ---
 
 ## 實驗結果
