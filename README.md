@@ -11,11 +11,10 @@
 
 | Agent    | 平均分數 | 標準差 | 最高分 | 平均最大 Tile | 最大 Tile |
 |----------|--------:|-------:|-------:|-------------:|----------:|
-| Random   |  1127.3 |  529.9 |   3052 |        108.2 |       256 |
-| Baseline |  1203.0 |  565.6 |   3276 |        110.9 |       256 |
-| Partial  |  1621.1 |  905.8 |   5484 |        142.0 |       512 |
-| **Full** | **3310.7** | **1850.8** | **11320** | **281.9** | **1024** |
-| Best     |  2531.5 | 1333.9 |   6704 |        198.9 |       512 |
+| Random   |  1070.4 |  600.2 |   3152 |        104.3 |       256 |
+| Baseline |  2332.4 | 1346.1 |   6648 |        198.1 |       512 |
+| Partial  |  2552.5 | 1336.0 |  10036 |        214.1 |      1024 |
+| **Full** | **3245.0** | **1835.6** | **9948** | **259.0** | **1024** |
 
 *每個 Agent 以 Greedy 策略（ε = 0）評估 200 局。*
 
@@ -90,33 +89,17 @@ $$R = \log_2(r_{\text{score}}) + \alpha \cdot r_{\text{empty}} + \beta \cdot r_{
 
 加入位置策略與盤面整齊度的回饋，引導 Agent 學習角落策略與單調排列。
 
-### Best Agent
-$$R = \log_2(r_{\text{score}}) + \alpha \cdot r_{\text{empty}} + \beta \cdot r_{\text{snake}} + \gamma \cdot r_{\text{smooth}}$$
-
-以兩個連續信號取代 Full Agent 中的二元信號：
-
-**$r_{\text{snake}}$** — 將 log₂-Tile 值與固定的 Snake 排列權重矩陣做內積，正規化至 \[0, 1\]。大 Tile 位於左上角、依 Snake 路徑遞減時分數最高，是比 Corner Reward 更連續、更細緻的信號。
-
-```
-15 14 13 12
- 8  9 10 11   ÷ 15
- 7  6  5  4
- 0  1  2  3
-```
-
-**$r_{\text{smooth}}$** — 相鄰 Tile 的 log₂ 差絕對值的負平均。懲罰大小 Tile 相鄰的雜亂盤面，鼓勵漸進梯度以利未來合併。
-
-$$r_{\text{smooth}} = -\frac{1}{24} \sum_{\text{相鄰對}} |\log_2 a - \log_2 b|$$
-
 ---
 
-## 訓練關鍵
+## 評估指標
 
-以下三點修正對實驗結果有顯著影響：
-
-- **每 4 步更新一次**（而非每步）— 防止對稀疏 Reward 環境中的 Replay Buffer 過度擬合
-- **每步衰減 ε**（0.9999）（而非每集）— 在 1000 集訓練中保持更平滑的探索排程
-- **One-hot 狀態編碼**（而非純量正規化）— Tile 數值是類別型資料，不具有線性大小關係
+| 指標 | 說明 |
+|------|------|
+| 平均分數 | 200 局 Greedy 評估的平均遊戲分數 |
+| 標準差 | 分數的標準差，反映策略的穩定性 |
+| 最高分 | 單局最高紀錄 |
+| 平均最大 Tile | 平均能達到的最大 Tile 值 |
+| 最大 Tile | 單局最大 Tile 紀錄 |
 
 ---
 
@@ -126,7 +109,7 @@ $$r_{\text{smooth}} = -\frac{1}{24} \sum_{\text{相鄰對}} |\log_2 a - \log_2 b
 2048-rl/
 ├── src/
 │   ├── agents.py        # RandomAgent、BaselineAgent、PartialRewardAgent、
-│   │                    # FullRewardAgent、BestRewardAgent、DQNNetwork
+│   │                    # FullRewardAgent、DQNNetwork
 │   ├── environment.py   # Game2048Env 環境封裝
 │   └── game.py          # 2048 核心遊戲邏輯
 ├── train.py             # 訓練腳本（編輯 TRAIN_CONFIG 選擇要訓練的 Agent）
@@ -159,12 +142,12 @@ uv sync
 uv run train.py
 ```
 
-範例 — 同時訓練 Full 與 Best Agent：
+範例 — 同時訓練 Partial 與 Full Agent：
 
 ```python
 TRAIN_CONFIG = [
-    {"agent_type": "full", "num_episodes": 1000, "epsilon_decay": 0.9999, "empty_weight": 0.1, "corner_weight": 1.0, "monotonic_weight": 1.0},
-    {"agent_type": "best", "num_episodes": 1000, "epsilon_decay": 0.9999, "empty_weight": 0.1, "snake_weight": 1.0,  "smooth_weight": 0.5},
+    {"agent_type": "partial", "num_episodes": 1000, "epsilon_decay": 0.9999, "empty_weight": 0.1},
+    {"agent_type": "full",    "num_episodes": 1000, "epsilon_decay": 0.9999, "empty_weight": 0.1, "monotonic_weight": 1.0, "smooth_weight": 0.5},
 ]
 ```
 
@@ -182,7 +165,7 @@ uv run evaluate.py
 uv run export_onnx.py
 ```
 
-輸出至 `2048/onnx/{baseline,partial,full,best}_agent.onnx`。
+輸出至 `2048/onnx/{baseline,partial,full}_agent.onnx`。
 
 ### 瀏覽器 Demo
 
@@ -193,15 +176,3 @@ python -m http.server 8000
 ```
 
 從下拉選單選擇 Agent，調整速度滑桿，點擊 **▶ AI Play** 即可觀看 AI 對戰。
-
----
-
-## 評估指標
-
-| 指標 | 說明 |
-|------|------|
-| 平均分數 | 200 局 Greedy 評估的平均遊戲分數 |
-| 標準差 | 分數的標準差，反映策略的穩定性 |
-| 最高分 | 單局最高紀錄 |
-| 平均最大 Tile | 平均能達到的最大 Tile 值 |
-| 最大 Tile | 單局最大 Tile 紀錄 |

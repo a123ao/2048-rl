@@ -44,10 +44,10 @@ if __name__ == "__main__":
     # baseline_agent.load("./checkpoints/baseline_agent.pth")
     # run_agent(baseline_agent, env)
 
-    partial_agent = PartialRewardAgent(device='cpu')
-    partial_agent.load("./checkpoints/partial_agent.pth")
-    run_agent(partial_agent, env)
+    # partial_agent = PartialRewardAgent(device='cpu')
+    # partial_agent.load("./checkpoints/partial_agent.pth")
+    # run_agent(partial_agent, env)
 
-    # full_agent = FullRewardAgent(device='cpu')
-    # full_agent.load("./checkpoints/full_agent.pth")
-    # run_agent(full_agent, env)
+    full_agent = FullRewardAgent(device='cpu')
+    full_agent.load("./checkpoints/full_agent.pth")
+    run_agent(full_agent, env)

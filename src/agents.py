@@ -176,7 +176,7 @@ class BaselineAgent(BaseAgent):
         encoded[np.arange(16), s] = 1.0
         return encoded.flatten()
 
-    def remember(self, state, action, reward, next_state, done, info_dict: dict = None):
+    def remember(self, state, action, reward, next_state, done, info_dict: Optional[dict] = None):
         """Store experience in replay buffer with log2-scaled reward."""
         # log2 scaling: 0 for no-merge moves, log2(score) for merges
         scaled_reward = float(np.log2(reward)) if reward > 0 else 0.0
@@ -293,7 +293,7 @@ class PartialRewardAgent(BaselineAgent):
         )
         self.empty_weight = empty_weight
     
-    def remember(self, state, action, reward, next_state, done, info_dict: dict = None):
+    def remember(self, state, action, reward, next_state, done, info_dict: Optional[dict] = None):
         """
         Store experience with reward shaping: R = log2(r_score) + alpha * r_empty
         """
@@ -306,122 +306,20 @@ class PartialRewardAgent(BaselineAgent):
 
 class FullRewardAgent(BaselineAgent):
     """
-    DQN agent with Full Reward Shaping.
-    
-    Reward formula: R = log2(r_score) + alpha*r_empty + beta*r_corner + gamma*r_monotonic
-    
-    - r_empty:     number of empty cells (maneuverability)
-    - r_corner:    1 if max tile is in a corner (positional strategy)
-    - r_monotonic: fraction of rows/cols that are monotone (orderly board)
-    """
-    
-    def __init__(self, 
-                 state_size: int = 256,
-                 action_size: int = 4,
-                 hidden_size: int = 256,
-                 learning_rate: float = 1e-3,
-                 gamma: float = 0.99,
-                 buffer_size: int = 20000,
-                 batch_size: int = 64,
-                 device: str = 'cpu',
-                 seed: Optional[int] = None,
-                 empty_weight: float = 0.1,
-                 corner_weight: float = 1.0,
-                 monotonic_weight: float = 1.0):
-        super().__init__(
-            state_size=state_size,
-            action_size=action_size,
-            hidden_size=hidden_size,
-            learning_rate=learning_rate,
-            gamma=gamma,
-            buffer_size=buffer_size,
-            batch_size=batch_size,
-            device=device,
-            seed=seed
-        )
-        self.empty_weight = empty_weight
-        self.corner_weight = corner_weight
-        self.monotonic_weight = monotonic_weight
-    
-    def remember(self, state, action, reward, next_state, done, info_dict: dict = None):
-        """
-        Store experience with full reward shaping:
-        R = log2(r_score) + alpha*r_empty + beta*r_corner + gamma*r_monotonic
-        """
-        r_score = float(np.log2(reward)) if reward > 0 else 0.0
-        r_empty = float(info_dict.get('empty_cells', 0)) if info_dict is not None else 0.0
-        
-        # next_state is log2-encoded flat array (0=empty, k=tile 2^k)
-        grid = np.array(next_state, dtype=np.float32).reshape(4, 4)
-        r_corner = self._corner_reward(grid)
-        r_monotonic = self._monotonic_reward(grid)
-        
-        shaped_reward = (r_score
-                         + self.empty_weight * r_empty
-                         + self.corner_weight * r_corner
-                         + self.monotonic_weight * r_monotonic)
-        self.memory.append((self._preprocess_state(state), action, float(shaped_reward),
-                            self._preprocess_state(next_state), done))
-    
-    @staticmethod
-    def _corner_reward(grid: np.ndarray) -> float:
-        """1.0 if the max tile is in one of the four corners, else 0.0."""
-        max_val = np.max(grid)
-        corners = [grid[0, 0], grid[0, 3], grid[3, 0], grid[3, 3]]
-        return 1.0 if max_val in corners else 0.0
-    
-    @staticmethod
-    def _monotonic_reward(grid: np.ndarray) -> float:
-        """Fraction of rows and columns that are monotonically ordered (0.0–1.0)."""
-        score = 0
-        for i in range(4):
-            row = grid[i]
-            if (all(row[j] <= row[j + 1] for j in range(3)) or
-                    all(row[j] >= row[j + 1] for j in range(3))):
-                score += 1
-            col = grid[:, i]
-            if (all(col[j] <= col[j + 1] for j in range(3)) or
-                    all(col[j] >= col[j + 1] for j in range(3))):
-                score += 1
-        return score / 8.0
-
-
-class BestRewardAgent(BaselineAgent):
-    """
-    DQN agent with optimized reward shaping.
+    DQN agent with Full Reward Shaping (Yiyuan Lee style).
 
     Reward formula:
-        R = log2(r_score) + alpha * r_empty + beta * r_snake + gamma * r_smooth
+        R = log2(r_score) + alpha*r_empty + beta*r_monotonic + gamma*r_smooth
 
-    Replaces the binary corner/monotonic rewards with two continuous signals:
+    - r_empty:     number of empty cells (maneuverability)
+    - r_monotonic: continuous monotonicity score (Yiyuan Lee style, range [-1, 0]).
+                   For each row/col, computes gradient penalties in both directions
+                   and picks the better one; more monotone boards score closer to 0.
+    - r_smooth:    negative mean absolute log2-difference between adjacent tiles
+                   (range [-1, 0]); smoother boards score closer to 0.
 
-    r_snake:
-        Dot product of the log2-tile values with a fixed snake-order weight
-        matrix.  Large tiles in high-weight positions score higher.  This
-        naturally encourages the agent to keep the largest tile in one corner
-        and arrange tiles in a decreasing snake path – without rigidly locking
-        it to a single corner like r_corner does.
-
-        Weight matrix (normalized to [0, 1]):
-            15 14 13 12       ← top row: highest weights
-             8  9 10 11
-             7  6  5  4
-             0  1  2  3       ← bottom row: lowest weights
-
-    r_smooth:
-        Negative sum of absolute log2-differences between every pair of
-        adjacent tiles (horizontal + vertical).  Penalizes jagged boards where
-        large and small tiles sit next to each other.  A smooth gradient makes
-        future merges easier.  Normalized by the number of adjacent pairs (24).
+    Based on: Yiyuan Lee's heuristic evaluation for 2048.
     """
-
-    # Snake-order weight matrix, normalized to [0, 1]
-    _SNAKE_WEIGHTS: np.ndarray = np.array([
-        [15, 14, 13, 12],
-        [ 8,  9, 10, 11],
-        [ 7,  6,  5,  4],
-        [ 0,  1,  2,  3],
-    ], dtype=np.float32) / 15.0   # max weight = 15
 
     def __init__(self,
                  state_size: int = 256,
@@ -434,7 +332,7 @@ class BestRewardAgent(BaselineAgent):
                  device: str = 'cpu',
                  seed: Optional[int] = None,
                  empty_weight: float = 0.1,
-                 snake_weight: float = 1.0,
+                 monotonic_weight: float = 1.0,
                  smooth_weight: float = 0.5):
         super().__init__(
             state_size=state_size,
@@ -445,59 +343,73 @@ class BestRewardAgent(BaselineAgent):
             buffer_size=buffer_size,
             batch_size=batch_size,
             device=device,
-            seed=seed,
+            seed=seed
         )
-        self.empty_weight  = empty_weight
-        self.snake_weight  = snake_weight
-        self.smooth_weight = smooth_weight
+        self.empty_weight     = empty_weight
+        self.monotonic_weight = monotonic_weight
+        self.smooth_weight    = smooth_weight
 
-    def remember(self, state, action, reward, next_state, done, info_dict: dict = None):
+    def remember(self, state, action, reward, next_state, done, info_dict: Optional[dict] = None):
         """
-        Store experience with optimized reward shaping:
-            R = log2(r_score) + alpha*r_empty + beta*r_snake + gamma*r_smooth
+        Store experience with full reward shaping (Yiyuan Lee style):
+        R = log2(r_score) + alpha*r_empty + beta*r_monotonic + gamma*r_smooth
         """
         r_score = float(np.log2(reward)) if reward > 0 else 0.0
         r_empty = float(info_dict.get('empty_cells', 0)) if info_dict is not None else 0.0
 
         # next_state is log2-encoded flat array (0=empty, k=tile 2^k)
         grid = np.array(next_state, dtype=np.float32).reshape(4, 4)
-        r_snake  = self._snake_reward(grid)
-        r_smooth = self._smooth_reward(grid)
+        r_monotonic = self._monotonic_reward(grid)
+        r_smooth    = self._smooth_reward(grid)
 
         shaped_reward = (r_score
-                         + self.empty_weight  * r_empty
-                         + self.snake_weight  * r_snake
-                         + self.smooth_weight * r_smooth)
+                         + self.empty_weight     * r_empty
+                         + self.monotonic_weight * r_monotonic
+                         + self.smooth_weight    * r_smooth)
         self.memory.append((self._preprocess_state(state), action, float(shaped_reward),
                             self._preprocess_state(next_state), done))
 
-    @classmethod
-    def _snake_reward(cls, grid: np.ndarray) -> float:
+    @staticmethod
+    def _monotonic_reward(grid: np.ndarray) -> float:
         """
-        Weighted sum of log2-tile values using the snake weight matrix.
-        Higher score means large tiles are sitting in high-value positions.
-        Normalized by the theoretical maximum (all cells = tile 2^11 = 2048).
+        Continuous monotonicity reward (Yiyuan Lee style).
+
+        For each row and column, compute the sum of value-drop penalties in
+        both the increasing and decreasing directions, then pick the direction
+        with less penalty (max of two negative values).  Sum over all 4 rows
+        and 4 columns.
+
+        Normalized by the worst-case total penalty (3 * 11 * 8 = 264).
+        Returns a value in [-1, 0]; closer to 0 means more monotone.
         """
-        score = float(np.sum(grid * cls._SNAKE_WEIGHTS))
-        max_possible = 11.0 * cls._SNAKE_WEIGHTS.sum()   # 11 * 60 = 660
-        return score / max_possible
+        total = 0.0
+        for i in range(4):
+            for line in (grid[i, :], grid[:, i]):
+                inc = 0.0  # penalty when sequence is non-increasing
+                dec = 0.0  # penalty when sequence is non-decreasing
+                for j in range(3):
+                    if line[j] > line[j + 1]:
+                        inc += line[j + 1] - line[j]   # negative
+                    elif line[j] < line[j + 1]:
+                        dec += line[j] - line[j + 1]   # negative
+                total += max(inc, dec)
+        return total / 264.0  # normalize: worst case = 3 * 11 * 8 = 264
 
     @staticmethod
     def _smooth_reward(grid: np.ndarray) -> float:
         """
-        Smoothness: negative mean absolute difference between adjacent log2-tiles.
+        Smoothness: negative mean absolute log2-difference between adjacent tiles.
         Range approximately [-1, 0]; closer to 0 means smoother board.
         """
         diff = 0.0
         pairs = 0
         for r in range(4):
             for c in range(4):
-                if c + 1 < 4:                          # horizontal neighbour
+                if c + 1 < 4:
                     diff += abs(grid[r, c] - grid[r, c + 1])
                     pairs += 1
-                if r + 1 < 4:                          # vertical neighbour
+                if r + 1 < 4:
                     diff += abs(grid[r, c] - grid[r + 1, c])
                     pairs += 1
-        # normalize: max possible diff per pair is 11 (log2 values 0..11)
         return -(diff / pairs) / 11.0
 

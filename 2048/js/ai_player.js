@@ -31,7 +31,6 @@ var AI = (function () {
     { key: 'baseline', label: 'Baseline' },
     { key: 'partial',  label: 'Partial'  },
     { key: 'full',     label: 'Full'     },
-    { key: 'best',     label: 'Best'     },
   ];
 
   var session   = null;
@@ -143,15 +142,14 @@ var AI = (function () {
     btnEl.disabled    = false;
   }
 
-  // ── Inject UI panel between .above-game and .game-container ──────────────
+  // ── Inject AI controls directly into .above-game (same row as New Game) ──
   function injectUI() {
-    var panel = document.createElement('div');
-    panel.id = 'ai-panel';
-    panel.style.cssText = 'margin:10px 0;display:flex;align-items:center;gap:8px;flex-wrap:wrap';
+    var aboveGame = document.querySelector('.above-game');
+    if (!aboveGame) return;
 
     // Agent selector
     agentEl = document.createElement('select');
-    agentEl.style.cssText = 'padding:6px 8px;border-radius:3px;border:2px solid #bbada0;background:#f9f6f2;font-size:14px;font-family:inherit;cursor:pointer';
+    agentEl.style.cssText = 'padding:4px 6px;border-radius:3px;border:2px solid #bbada0;background:#f9f6f2;font-size:13px;font-family:inherit;cursor:pointer;height:32px';
     AGENTS.forEach(function (a) {
       var opt = document.createElement('option');
       opt.value = a.key;
@@ -163,12 +161,12 @@ var AI = (function () {
     // Speed label + slider
     var lbl = document.createElement('label');
     lbl.textContent = 'Speed:';
-    lbl.style.cssText = 'font-size:13px;color:#776e65';
+    lbl.style.cssText = 'font-size:13px;color:#776e65;white-space:nowrap';
 
     speedEl = document.createElement('input');
     speedEl.type  = 'range';
     speedEl.min   = 50; speedEl.max = 800; speedEl.value = 250; speedEl.step = 50;
-    speedEl.style.cssText = 'width:80px;cursor:pointer;vertical-align:middle';
+    speedEl.style.cssText = 'width:70px;cursor:pointer;vertical-align:middle';
     speedEl.title = 'Move delay (ms) – left = faster';
     speedEl.addEventListener('input', function () { if (timer) { stop(); start(); } });
 
@@ -179,13 +177,14 @@ var AI = (function () {
     btnEl.style.cssText = 'cursor:pointer;user-select:none';
     btnEl.addEventListener('click', toggle);
 
-    panel.appendChild(agentEl);
-    panel.appendChild(lbl);
-    panel.appendChild(speedEl);
-    panel.appendChild(btnEl);
+    var aiGroup = document.createElement('div');
+    aiGroup.style.cssText = 'display:flex;align-items:center;gap:8px;margin-left:auto';
+    aiGroup.appendChild(agentEl);
+    aiGroup.appendChild(lbl);
+    aiGroup.appendChild(speedEl);
+    aiGroup.appendChild(btnEl);
 
-    var ref = document.querySelector('.above-game');
-    if (ref) ref.parentNode.insertBefore(panel, ref.nextSibling);
+    aboveGame.appendChild(aiGroup);
   }
 
   document.addEventListener('DOMContentLoaded', injectUI);

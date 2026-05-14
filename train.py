@@ -10,7 +10,7 @@ from tqdm import tqdm
 import torch
 
 from src.environment import Game2048Env
-from src.agents import RandomAgent, BaselineAgent, PartialRewardAgent, FullRewardAgent, BestRewardAgent
+from src.agents import RandomAgent, BaselineAgent, PartialRewardAgent, FullRewardAgent
 
 # ── Agent registry ─────────────────────────────────────────────────────────
 AGENT_REGISTRY = {
@@ -18,7 +18,6 @@ AGENT_REGISTRY = {
     'baseline': BaselineAgent,
     'partial':  PartialRewardAgent,
     'full':     FullRewardAgent,
-    'best':     BestRewardAgent,
 }
 
 # Shared DQN constructor kwargs (can be overridden per-agent in TRAIN_CONFIG)
@@ -82,7 +81,7 @@ class TrainingLogger:
 
 
 def train_agent(agent_type: str = "baseline",
-                num_episodes: int = 1000,
+                num_episodes: int = 3000,
                 epsilon_start: float = 1.0,
                 epsilon_end: float = 0.05,
                 epsilon_decay: float = 0.9999,
@@ -219,8 +218,7 @@ def main():
         {"agent_type": "random"},
         {"agent_type": "baseline"},
         {"agent_type": "partial",  "empty_weight": 0.1},
-        {"agent_type": "full",     "empty_weight": 0.1, "corner_weight": 1.0, "monotonic_weight": 1.0},
-        {"agent_type": "best",     "empty_weight": 0.1, "snake_weight": 1.0, "smooth_weight": 0.5},
+        {"agent_type": "full",     "empty_weight": 0.1, "monotonic_weight": 1.0, "smooth_weight": 0.5},
     ]
     # ────────────────────────────────────────────────────────────────────────
 

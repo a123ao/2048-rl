@@ -16,7 +16,7 @@ from tqdm import tqdm
 import torch
 
 from src.environment import Game2048Env
-from src.agents import RandomAgent, BaselineAgent, PartialRewardAgent, FullRewardAgent, BestRewardAgent
+from src.agents import RandomAgent, BaselineAgent, PartialRewardAgent, FullRewardAgent
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -55,20 +55,11 @@ AGENTS_CONFIG = [
     },
     {
         "key":   "full",
-        "label": "Full\n$R = r_{score} + \\alpha r_{empty}$\n$+ \\beta r_{corner} + \\gamma r_{mono}$",
+        "label": "Full\n$R = r_{score} + \\alpha r_{empty}$\n$+ \\beta r_{mono} + \\gamma r_{smooth}$",
         "color": "#4CAF50",
         "marker": "D",
         "has_model": True,
         "cls": FullRewardAgent,
-        "kwargs": {"state_size": 256, "hidden_size": 256},
-    },
-    {
-        "key":   "best",
-        "label": "Best\n$R = r_{score} + \\alpha r_{empty}$\n$+ \\beta r_{snake} + \\gamma r_{smooth}$",
-        "color": "#E91E63",
-        "marker": "*",
-        "has_model": True,
-        "cls": BestRewardAgent,
         "kwargs": {"state_size": 256, "hidden_size": 256},
     },
 ]
