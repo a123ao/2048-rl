@@ -18,6 +18,18 @@
 
 *每個 Agent 以 Greedy 策略（ε = 0）評估 200 局。*
 
+### 評估指標圖表
+
+![Evaluation Metrics](results/evaluation_metrics.png)
+
+### 訓練曲線
+
+![Training Curves](results/training_curves.png)
+
+### 累積與平均 Reward
+
+![Cumulative Rewards](results/cumulative_rewards.png)
+
 ---
 
 ## 研究動機
