@@ -9,14 +9,14 @@
 
 ## 實驗結果
 
-| Agent    | 平均分數 | 標準差 | 最高分 | 平均最大 Tile | 最大 Tile |
-|----------|--------:|-------:|-------:|-------------:|----------:|
-| Random   |  1070.4 |  600.2 |   3152 |        104.3 |       256 |
-| Baseline |  2332.4 | 1346.1 |   6648 |        198.1 |       512 |
-| Partial  |  2552.5 | 1336.0 |  10036 |        214.1 |      1024 |
-| **Full** | **3245.0** | **1835.6** | **9948** | **259.0** | **1024** |
+| Agent    | 平均分數 | 中位數 | 標準差 | P25 | P75 | 最高分 | 平均最大 Tile | 最大 Tile |
+|----------|--------:|-------:|-------:|----:|----:|-------:|-------------:|----------:|
+| Random   |  1070.4 |    950 |  600.2 |  640 | 1372 |   3152 |        104.3 |       256 |
+| Baseline |  2332.4 |  2,004 | 1346.1 | 1372 | 3036 |   6648 |        198.1 |       512 |
+| Partial  |  2552.5 |  2,414 | 1336.0 | 1616 | 3132 |  10036 |        214.1 |      1024 |
+| **Full** | **3245.0** | **3,066** | **1835.6** | **1692** | **4348** | **9948** | **259.0** | **1024** |
 
-*每個 Agent 以 Greedy 策略（ε = 0）評估 200 局。*
+*每個 Agent 以 Greedy 策略（ε = 0）評估 200 局。平均數高於中位數，反映分數分布右偏（偶發高分局拉高均值）。*
 
 ### 評估指標圖表
 
@@ -91,15 +91,18 @@ $$R = \log_2(r_{\text{score}}) + \alpha \cdot r_{\text{empty}}$$
 
 加入空格數作為額外 Reward（$\alpha = 0.1$），鼓勵 Agent 保持盤面空間以利後續合併。
 
-### Full Agent
-$$R = \log_2(r_{\text{score}}) + \alpha \cdot r_{\text{empty}} + \beta \cdot r_{\text{corner}} + \gamma \cdot r_{\text{monotonic}}$$
+### Full Agent（參考 Yiyuan Lee's Heuristic AI）
+$$R = \log_2(r_{\text{score}}) + \alpha \cdot r_{\text{empty}} + \beta \cdot r_{\text{monotonic}} + \gamma \cdot r_{\text{smooth}}$$
 
-| 項目 | 說明 |
-|------|------|
-| $r_{\text{corner}}$ | 最大 Tile 在角落時為 1.0，否則為 0 |
-| $r_{\text{monotonic}}$ | 行與列呈單調排列的比例（0–1） |
+$$\alpha = 0.1, \quad \beta = 1.0, \quad \gamma = 0.5$$
 
-加入位置策略與盤面整齊度的回饋，引導 Agent 學習角落策略與單調排列。
+| 項目 | 說明 | 範圍 |
+|------|------|------|
+| $r_{\text{empty}}$ | 空格數 | [0, 15] |
+| $r_{\text{monotonic}}$ | 連續單調性懲罰（每行列取遞增/遞減兩方向中懲罰較少者，正規化至 [-1, 0]） | [-1, 0] |
+| $r_{\text{smooth}}$ | 相鄰格 log₂ 差絕對值負平均，除以 11 正規化 | [-1, 0] |
+
+加入連續的盤面結構信號，引導 Agent 學習單調排列與平滑梯度，比二元 corner/monotonic 信號更細緻。
 
 ---
 
@@ -158,8 +161,8 @@ uv run train.py
 
 ```python
 TRAIN_CONFIG = [
-    {"agent_type": "partial", "num_episodes": 1000, "epsilon_decay": 0.9999, "empty_weight": 0.1},
-    {"agent_type": "full",    "num_episodes": 1000, "epsilon_decay": 0.9999, "empty_weight": 0.1, "monotonic_weight": 1.0, "smooth_weight": 0.5},
+    {"agent_type": "partial", "num_episodes": 3000, "epsilon_decay": 0.9999, "empty_weight": 0.1},
+    {"agent_type": "full",    "num_episodes": 3000, "epsilon_decay": 0.9999, "empty_weight": 0.1, "monotonic_weight": 1.0, "smooth_weight": 0.5},
 ]
 ```
 
